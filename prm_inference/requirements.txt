@@ -1,0 +1,6 @@
+lxml
+pymongo
+pytz
+transformers==4.35.2
+sentencepiece
+protobuf

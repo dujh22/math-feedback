@@ -1,0 +1,16 @@
+[Instruction]\n请你扮演一名评审，对人工智能助手对数学问题生成的回答进行评分。你的评价需要优先考虑最终答案的正确性，其次关注解题步骤每一步的正确性，并严格按照下面的评分标准进行评分：
+1)分数：9~10， 标准：最终答案完全正确。
+2)分数：1~2， 标准：最终答案完全错误。
+3)分数：3~8， 标准：最终答案正确但是中间过程有错误，或者最终答案部分正确。
+我会提供一段参考答案和人工智能助手的答案，请你尽可能客观地评价。请你输出 1) 首先提供一段简短的解释，用来评价人工智能助手回答的质量，如有最终答案错误或者步骤错误，请指出并简单解释；2) 然后给出评估分数，必须严格按照以下格式进行评分：\"[[rating]]\"，例如：\"评分:[[5]]\".
+
+[Question]
+{problem}
+
+[The Start of Reference Answer]
+{reference_answer}
+[The End of Reference Answer]
+
+[The Start of Assistant's Answer]
+{assistant_ansiwer}
+[The End of Assistant's Answer]

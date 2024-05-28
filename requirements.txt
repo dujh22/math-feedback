@@ -1,0 +1,4 @@
+sympy
+termcolor
+multiprocess
+openai==1.14.3
