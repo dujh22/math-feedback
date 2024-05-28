@@ -10,14 +10,14 @@ PRM help llm math
 
 请根据您使用和引用的内容考虑引用以下内容：
 
-- 代码： alpaca_eval（本软件仓库）。
+- 代码： math-feedback（本软件仓库）。
 
 以下是 bibtex 条目：
 
 ```
-@misc{du2024chatglmmathv2,
+@misc{du2024mathfeedback,
   author = {Jinhua Du and Zhenyu Hou},
-  title = {ChatGLM-MathV2: Forward automatic labeling combined with backward scoring feedback for computational process rewarding},
+  title = {mathfeedback: Forward automatic labeling combined with backward scoring feedback for computational process rewarding},
   year = {2024},
   publisher = {GitHub},
   journal = {GitHub repository},
