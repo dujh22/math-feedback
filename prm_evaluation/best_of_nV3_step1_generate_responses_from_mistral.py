@@ -44,24 +44,35 @@ def load_data(input_file_path, data_length):
                 break
     return data
 
-def get_existing_ids(output_file_path):
+def get_existing_ids(output_file_path, dataset_name="math500"):
     existing_ids = set()
     try:
         with open(output_file_path, 'r', encoding='utf-8') as f:
             for line in f:
                 item = json.loads(line.strip())
-                existing_ids.add(item['unique_id'])
+                if dataset_name == "math500":
+                    existing_ids.add(item['unique_id'])
+                elif dataset_name == "gsm8k":
+                    existing_ids.add(item['id'])
+                else:
+                    raise ValueError(f"Unsupported dataset: {dataset_name}")
     except FileNotFoundError:
         pass
     return existing_ids
 
-def generate_responses(data, maxn, generate_backbone, generate_url, max_workers_num, output_file_path):
+def generate_responses(data, maxn, generate_backbone, generate_url, max_workers_num, output_file_path, dataset_name="math500"):
     existing_ids = get_existing_ids(output_file_path)
 
     with open(output_file_path, 'a', encoding='utf-8') as f:
         for item in tqdm(data, desc='Generating N Responses'):
-            if item['unique_id'] in existing_ids:
-                continue
+            if dataset_name == "math500":
+                if item['unique_id'] in existing_ids:
+                    continue
+            elif dataset_name == "gsm8k":
+                if item['id'] in existing_ids:
+                    continue
+            else:
+                raise ValueError(f"Unsupported dataset: {dataset_name}")
 
             item['responses'] = []
             if generate_backbone == 'mistral7b':
@@ -78,42 +89,38 @@ def generate_responses(data, maxn, generate_backbone, generate_url, max_workers_
             f.flush()  # 确保数据被及时写入文件
     return data
 
-def prm_evaluation_best_of_n(id = 2, max_workers_num = 10, maxn = 5, data_length = 5,generate_backbone = "tgi", generate_url = TGI_URL, critic_backbone = "tgi", critic_url = CRITIC_URL):
+def prm_evaluation_best_of_n(max_workers_num = 10, maxn = 5, data_length = 5,generate_backbone = "tgi", generate_url = TGI_URL, dataset_name = "math500"):
     idx = gpu_id
     project_path = '/workspace/dujh22/math_feedback/prm_evaluation/data/'
-    input_file_path = project_path + f'test/test_{id}_part_{idx + 1}.jsonl'
+    input_file_path = project_path + dataset_name + '/' + f'{dataset_name}_part_{idx + 1}.jsonl'
     
-    output_file_dir = project_path + 'test1/'
+    output_file_dir = project_path + dataset_name + '1/'
     if not os.path.exists(output_file_dir):
         os.makedirs(output_file_dir)
-    output_file_path = project_path + f'test1/test_{id}_part_{idx + 1}.jsonl'
+    output_file_path = output_file_dir + f'{dataset_name}_part_{idx + 1}.jsonl'
     
     data = load_data(input_file_path, data_length)
-    data = generate_responses(data, maxn, generate_backbone, generate_url, max_workers_num, output_file_path)
+    data = generate_responses(data, maxn, generate_backbone, generate_url, max_workers_num, output_file_path, dataset_name)
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate the best of N parameterized models.")
 
-    parser.add_argument('--id', type=str, default="500data", help='ID of the model')
     parser.add_argument('--max_workers_num', type=int, default=10, help='Maximum number of workers')
     parser.add_argument('--maxn', type=int, default=32, help='Maximum value of n')
-    parser.add_argument('--data_length', type=int, default=500, help='Length of the data')
+    parser.add_argument('--data_length', type=int, default=1319, help='Length of the data')
     parser.add_argument('--generate_backbone', type=str, default="mistral7b", help='Backbone for generation')
     parser.add_argument('--generate_url', type=str, default=TGI_URL, help='URL for generation backbone')
-    parser.add_argument('--critic_backbone', type=str, default="tgi", help='Backbone for critic')
-    parser.add_argument('--critic_url', type=str, default=TGI_URL, help='URL for critic backbone')
+    parser.add_argument('--dataset_name', type=str, default='gsm8k', help='Name of the dataset')
     
     args = parser.parse_args()
 
     prm_evaluation_best_of_n(
-        id=args.id,
         max_workers_num=args.max_workers_num,
         maxn=args.maxn,
         data_length=args.data_length,
         generate_backbone=args.generate_backbone,
         generate_url=args.generate_url,
-        critic_backbone=args.critic_backbone,
-        critic_url=args.critic_url
+        dataset_name=args.dataset_name
     )
 
 if __name__ == '__main__':

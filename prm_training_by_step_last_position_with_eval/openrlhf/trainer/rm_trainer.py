@@ -1,3 +1,28 @@
+# debug 模块
+import logging
+from logging.handlers import QueueHandler, QueueListener
+import queue
+
+# 创建一个共享队列
+log_queue = queue.Queue()
+
+# 配置日志记录器
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s')
+
+# 创建一个队列处理器和监听器
+queue_handler = QueueHandler(log_queue)
+listener = QueueListener(log_queue, *logging.getLogger().handlers)
+
+# 添加队列处理器到日志记录器
+root_logger = logging.getLogger()
+root_logger.addHandler(queue_handler)
+
+# 启动监听器
+listener.start()
+
+#
+
+
 import math
 from abc import ABC
 
@@ -119,7 +144,9 @@ class RewardModelTrainer(ABC):
             for prompt_ids, prompt_masks, label in self.train_dataloader:
                 prompt_ids = prompt_ids.squeeze(1).to(torch.cuda.current_device())
                 prompt_masks = prompt_masks.squeeze(1).to(torch.cuda.current_device())
-                label_tensor = torch.tensor(label, dtype=torch.float, device=torch.cuda.current_device()).squeeze()
+                label_tensor = torch.tensor(label, dtype=torch.float, device=torch.cuda.current_device()).squeeze() # [batch_size]
+                if label_tensor.dim() == 0: # 如果是标量，转换为张量
+                    label_tensor = label_tensor.unsqueeze(0) # [1]
 
                 prompt_rewards, output = self.model(prompt_ids, attention_mask=prompt_masks, return_output=True)                                
                 # 将列表转换为PyTorch张量
@@ -129,25 +156,59 @@ class RewardModelTrainer(ABC):
                 # 避免 log(0) 的情况，将预测值限制在一个很小的范围内
                 epsilon = 1e-12
                 predictions_tensor = torch.clamp(predictions_tensor, epsilon, 1. - epsilon)
+
+                if predictions_tensor.size() != targets_tensor.size():
+                    # 在程序的不同部分记录日志
+                    logger = logging.getLogger()
+                    logger.info(f"----------------------------------")
+                    logger.info(f"Size mismatch at step {global_step}, logging and skipping update")
+                    logger.info(f"prompt_ids:{prompt_ids}")
+                    logger.info(f"prompt_masks:{prompt_masks}")
+                    logger.info(f"label:{label}")
+                    logger.info(f"label_tensor:{label_tensor}")
+                    logger.info(f"predictions_tensor:{predictions_tensor}")
+                    logger.info(f"targets_tensor:{targets_tensor}")
+                    logger.info(f"--------------end-----------------")
+                    listener.stop()
+
                 # 计算交叉熵损失
                 loss = targets_tensor * torch.log(predictions_tensor) + (1 - targets_tensor) * torch.log(1 - predictions_tensor)
                 loss = -torch.mean(loss)
 
+                # 检查是否有 NaN
+                if torch.isnan(loss):
+                    # 在程序的不同部分记录日志
+                    logger = logging.getLogger()
+                    logger.info(f"----------------------------------")
+                    logger.info(f"NaN detected at step {global_step}, logging and skipping update")
+                    logger.info(f"prompt_ids:{prompt_ids}")
+                    logger.info(f"prompt_masks:{prompt_masks}")
+                    logger.info(f"label:{label}")
+                    logger.info(f"label_tensor:{label_tensor}")
+                    logger.info(f"predictions_tensor:{predictions_tensor}")
+                    logger.info(f"targets_tensor:{targets_tensor}")
+                    logger.info(f"--------------end-----------------")
+                    listener.stop()
+
+                    # 记录 NaN 信息到 wandb 或其他日志
+                    logs_dict = {
+                        "acc": float('nan'),
+                        "loss": float('nan'),
+                        "prompt_rewards": float('nan'),
+                        "acc_mean": acc_mean,
+                        "loss_mean": loss_mean,
+                        "acc_all": acc_sum / acc_sum if acc_sum > 0 else float('nan'),
+                        "acc_all2": acc_sum2 / acc_sum2 if acc_sum2 > 0 else float('nan'),
+                    }
+                    self.save_logs_and_checkpoints(args, global_step, step_bar, logs_dict)
+                    step_bar.update()
+                    global_step += 1
+                    id += 1
+                    continue  # 跳过这个 batch 的更新步骤
+                #######
+
                 acc = (predictions_tensor.round() == label_tensor).float().mean().item()
 
-                # # 确保张量数据类型匹配
-                # if predictions_tensor.dtype != torch.float32:
-                #     predictions_tensor = predictions_tensor.float()  # 将预测结果转换为Float类型
-                # if targets_tensor.dtype != torch.float32:
-                #     targets_tensor = targets_tensor.float()  # 确保目标张量也是Float类型
-                # # 检查并调整预测张量和目标张量的形状以匹配
-                # predictions_tensor = predictions_tensor.view(-1)
-                # targets_tensor = targets_tensor.view(-1) 
-
-                # criterion = nn.BCELoss()
-                # loss = criterion(predictions_tensor, targets_tensor)
-
-                # acc = (predictions_tensor.round() == targets_tensor).float().mean().item()
                 self.strategy.backward(loss, self.model, self.optimizer)
                 self.strategy.optimizer_step(self.optimizer, self.model, self.scheduler)
 
@@ -170,6 +231,7 @@ class RewardModelTrainer(ABC):
                     cor_sum = cor_sum + (predictions_tensor.round() == targets_tensor).sum().item()
                     acc_sum2 = acc_sum2 + targets_tensor.size(0)
                     cor_sum2 = cor_sum2 + (predictions_tensor.round() == targets_tensor).sum().item()
+                
                 acc_all = cor_sum / acc_sum
                 acc_all2 = cor_sum2 / acc_sum2
 
@@ -194,6 +256,7 @@ class RewardModelTrainer(ABC):
 
         if self._wandb is not None and self.strategy.is_rank_0():
             self._wandb.finish()
+    
 
     # logs/checkpoints/evaluate
     def save_logs_and_checkpoints(self, args, global_step, step_bar, logs_dict={}):
@@ -212,8 +275,8 @@ class RewardModelTrainer(ABC):
                 self._wandb.log(logs)
 
         # eval
-        # if global_step % args.eval_steps == 0:
-        #     self.evaluate(self.eval_dataloader, global_step)
+        if global_step % args.eval_steps == 0:
+            self.evaluate(self.eval_dataloader, global_step)
         # save ckpt
         # TODO: save best model on dev, use loss/perplexity on whole dev dataset as metric
         if global_step % args.save_steps == 0:
@@ -229,55 +292,71 @@ class RewardModelTrainer(ABC):
         self.model.eval()
         with torch.no_grad():
             acc = 0
-            rewards = []
             loss_sum = 0
             for prompt_ids, prompt_masks, label in eval_dataloader:
                 prompt_ids = prompt_ids.squeeze(1).to(torch.cuda.current_device())
                 prompt_masks = prompt_masks.squeeze(1).to(torch.cuda.current_device())
                 label_tensor = torch.tensor(label, dtype=torch.float, device=torch.cuda.current_device()).squeeze()
-
+                if label_tensor.dim() == 0: # 如果是标量，转换为张量
+                    label_tensor = label_tensor.unsqueeze(0) # [1]
+                    
                 prompt_rewards, output = self.model(prompt_ids, attention_mask=prompt_masks, return_output=True)                                
                 # 将列表转换为PyTorch张量
                 predictions_tensor = prompt_rewards
                 targets_tensor = label_tensor
+
                 # 避免 log(0) 的情况，将预测值限制在一个很小的范围内
                 epsilon = 1e-12
                 predictions_tensor = torch.clamp(predictions_tensor, epsilon, 1. - epsilon)
+                
+                if predictions_tensor.size() != targets_tensor.size():
+                    # 在程序的不同部分记录日志
+                    logger = logging.getLogger()
+                    logger.info(f"----------------------------------")
+                    logger.info(f"prompt_ids:{prompt_ids}")
+                    logger.info(f"prompt_masks:{prompt_masks}")
+                    logger.info(f"label:{label}")
+                    logger.info(f"label_tensor:{label_tensor}")
+                    logger.info(f"predictions_tensor:{predictions_tensor}")
+                    logger.info(f"targets_tensor:{targets_tensor}")
+                    logger.info(f"--------------end-----------------")
+                    listener.stop()
+                
                 # 计算交叉熵损失
                 loss = targets_tensor * torch.log(predictions_tensor) + (1 - targets_tensor) * torch.log(1 - predictions_tensor)
-                loss = -torch.sum(loss)
+                loss = -torch.mean(loss)
 
-                rewards += [prompt_rewards.flatten()]
+                # 检查是否有 NaN
+                if torch.isnan(loss):
+                    # 在程序的不同部分记录日志
+                    logger = logging.getLogger()
+                    logger.info(f"----------------------------------")
+                    logger.info(f"prompt_ids:{prompt_ids}")
+                    logger.info(f"prompt_masks:{prompt_masks}")
+                    logger.info(f"label:{label}")
+                    logger.info(f"label_tensor:{label_tensor}")
+                    logger.info(f"predictions_tensor:{predictions_tensor}")
+                    logger.info(f"targets_tensor:{targets_tensor}")
+                    logger.info(f"--------------end-----------------")
+                    listener.stop()
+
                 acc += (predictions_tensor.round() == label_tensor).float().mean().item()
                 loss_sum += loss.item()
                 step_bar.update()
 
-            acc_mean = acc / self.eval_dataloader.__len__()
-            loss_mean = loss_sum / self.eval_dataloader.__len__()
+            if self.eval_dataloader.__len__() != 0:
+                acc_mean = acc / self.eval_dataloader.__len__()
+                loss_mean = loss_sum / self.eval_dataloader.__len__()
+            else:
+                acc_mean = acc
+                loss_mean = loss_sum
 
-            rewards = torch.cat(rewards).float()
-            rewards = self.strategy.all_gather(rewards)
-            reward_mean = torch.mean(rewards)
-            reward_std = torch.std(rewards).clamp(min=1e-8)
-
-            # save mean std
-            self.strategy.print("Set reward mean std")
-            unwrap_model = self.strategy._unwrap_model(self.model)
-            unwrap_model.config.mean = reward_mean.item()
-            unwrap_model.config.std = reward_std.item()
-            
             bar_dict = {
                 "eval_loss": loss_mean,
                 "acc_mean": acc_mean,
-                "reward_mean": reward_mean.item(),
-                "reward_std": reward_std.item(),
             }
-            logs = self.strategy.all_reduce(bar_dict) # 会卡死，这是个没有解决的bug，多进程没有同步
+            logs = self.strategy.all_reduce(bar_dict) 
             step_bar.set_postfix(logs)
-
-            histgram = torch.histogram(rewards.cpu(), bins=10, range=(-10, 10), density=True) * 2
-            self.strategy.print("histgram")
-            self.strategy.print(histgram)
 
             if self._wandb is not None and self.strategy.is_rank_0():
                 logs = {"eval/%s" % k: v for k, v in {**logs, "global_step": steps}.items()}

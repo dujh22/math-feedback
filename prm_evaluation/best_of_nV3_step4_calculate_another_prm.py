@@ -68,15 +68,17 @@ def calculate_prm_values(data, output_file_path):
     return data
 
 def prm_evaluation_best_of_n(data_length = 5):
-    project_path = '/workspace/dujh22/math_feedback/prm_evaluation/data/test1_1/'
-    input_file_path = project_path + 'test_rm3.jsonl'
-    output_file_path = project_path + 'test_rm3_mathshepherd_prm.jsonl'
+    project_path = '/workspace/dujh22/math_feedback/prm_evaluation/data/'
+    dataset_name = "gsm8k"
+
+    input_file_path = project_path + dataset_name + '1_1/' + dataset_name + '_rm3.jsonl'
+    output_file_path = project_path + dataset_name + '1_1/' + dataset_name + '_rm3_mathshepherd_prm.jsonl'
 
     data = load_data(input_file_path, data_length)
     data = calculate_prm_values(data, output_file_path)
 
 def main():
-    prm_evaluation_best_of_n(data_length=500)
+    prm_evaluation_best_of_n(data_length=1319)
 
 if __name__ == '__main__':
     main()

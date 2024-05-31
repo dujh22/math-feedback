@@ -1,7 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
-def plot_csv_files(file_prefix_mapping):
+def plot_csv_files(file_prefix_mapping, output_pic_path):
     # 创建图和轴对象，指定图的大小
     fig, ax = plt.subplots(figsize=(12, 8))
 
@@ -42,20 +42,27 @@ def plot_csv_files(file_prefix_mapping):
     # 应用紧凑布局
     plt.tight_layout()
     # 保存图像，确保图例不会被裁剪
-    plt.savefig('/workspace/dujh22/math_feedback/prm_evaluation/data/test1_1/combined_accuracy_plot.png', bbox_inches='tight')
+    plt.savefig(output_pic_path, bbox_inches='tight')
     # 显示图像
     plt.show()
 
 if __name__ == "__main__":
     # 指定文件路径
-    dir_path = '/workspace/dujh22/math_feedback/prm_evaluation/data/test1_1/'
+    project_path = '/workspace/dujh22/math_feedback/prm_evaluation/data/'
+    dataset_name = "gsm8k"
+    dir_path = project_path + dataset_name + '1_1/'
     # 创建文件和前缀的映射字典
     file_prefix_mapping = {
-        dir_path + 'test_rm3.csv': 'Train_llama3-8b-instruct-prm(prod)',
-        dir_path + 'test_rm3V2.csv': 'Train_llama3-8b-instruct-prm(mean)',
-        dir_path + 'test_rm3_mathshepherd_prm.csv': 'Open_Mistral-7b-prm(prod)',
-        dir_path + 'test_rm3_mathshepherd_prm_mean.csv': 'Open_Mistral-7b-prm(mean)'
+        dir_path + 'gsm8k_rm3.csv': 'Train_llama3-8b-instruct-prm(mean)',
+        dir_path + 'gsm8k_rm3_mathshepherd_prm.csv': 'Open_Mistral-7b-prm(mean)'
     }
+    output_pic_path = dir_path + 'combined_accuracy_plot.png'
+    # file_prefix_mapping = {
+    #     dir_path + 'test_rm3.csv': 'Train_llama3-8b-instruct-prm(prod)',
+    #     dir_path + 'test_rm3V2.csv': 'Train_llama3-8b-instruct-prm(mean)',
+    #     dir_path + 'test_rm3_mathshepherd_prm.csv': 'Open_Mistral-7b-prm(prod)',
+    #     dir_path + 'test_rm3_mathshepherd_prm_mean.csv': 'Open_Mistral-7b-prm(mean)'
+    # }
 
     # 调用绘图函数
-    plot_csv_files(file_prefix_mapping)
+    plot_csv_files(file_prefix_mapping, output_pic_path)

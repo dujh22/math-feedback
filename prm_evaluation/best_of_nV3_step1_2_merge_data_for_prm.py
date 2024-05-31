@@ -1,5 +1,6 @@
 import os
 import json
+from tqdm import tqdm
 
 def merge_jsonl_files(input_folder, input_file, output_file):
     raw_data = []
@@ -11,10 +12,10 @@ def merge_jsonl_files(input_folder, input_file, output_file):
     # 打开输出文件
     with open(output_file, 'w', encoding='utf-8') as outfile:
         # 遍历输入文件夹中的所有jsonl文件
-        for filename in os.listdir(input_folder):
+        for filename in tqdm(os.listdir(input_folder), desc='Merging JSONL files'):
             if filename.endswith('.jsonl'):
                 with open(os.path.join(input_folder, filename), 'r', encoding='utf-8') as infile:
-                    for line in infile:
+                    for line in tqdm(infile, desc='Processing JSONL file'):
                         data = json.loads(line.strip())
                         question = data.get('question')
                         responses = data.get('responses', [])
@@ -30,15 +31,19 @@ def merge_jsonl_files(input_folder, input_file, output_file):
                                     break
                         outfile.write(json.dumps(data, ensure_ascii=False) + '\n')
 
-# 使用示例
-# input_folder = 'F://code//github//math-feedback//math-feedback//prm_evaluation//data//test1'  # 替换为文件夹路径
-# output_file = 'F://code//github//math-feedback//math-feedback//prm_evaluation//data//test1_1//test.jsonl'
-input_folder = '/workspace/dujh22/math_feedback/prm_evaluation/data/test1'  # 替换为文件夹路径
-input_file = '/workspace/dujh22/math_feedback/prm_evaluation/data/test1_1/test_rm.jsonl'
-output_file = '/workspace/dujh22/math_feedback/prm_evaluation/data/test1_1/test_rm2.jsonl'
+def main():
+    project_path = '/workspace/dujh22/math_feedback/prm_evaluation/data/'
+    dataset_name = "gsm8k"
 
-# 确保输出目录存在
-if not os.path.exists(os.path.dirname(output_file)):
-    os.makedirs(os.path.dirname(output_file))
+    input_folder = project_path + dataset_name + '1/'
+    input_file = project_path + dataset_name + '1_1/' + dataset_name + '_rm.jsonl'
+    output_file = project_path + dataset_name + '1_1/' + dataset_name + '_rm2.jsonl'
 
-merge_jsonl_files(input_folder, input_file, output_file)
+    # 确保输出目录存在
+    if not os.path.exists(os.path.dirname(output_file)):
+        os.makedirs(os.path.dirname(output_file))
+
+    merge_jsonl_files(input_folder, input_file, output_file)
+
+if __name__ == "__main__":
+    main()

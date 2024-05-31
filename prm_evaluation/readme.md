@@ -16,6 +16,8 @@ cd /workspace/dujh22/math_feedback/prm_evaluation
 
 ### 2.1 数据拆分与response生成
 
+原始数据需要命名为数据集名称.jsonl，放在prm_evaluation\data文件夹下！
+
 #### 2.1.1 数据拆分
 
 将原始数据拆分为8个部分，用于在8卡机上并行生成response
@@ -27,19 +29,18 @@ python prm_evaluation\best_of_nV3_step0_data_split.py
 这里一般需要调整的部分是
 
 ```python
-def prm_evaluation_best_of_n(id = 2, max_workers_num = 10, maxn = 5, data_length = 5, num_splits = 8, generate_backbone = "tgi", generate_url = TGI_URL, critic_backbone = "tgi", critic_url = CRITIC_URL):
-    # project_path = '/workspace/dujh22/math_feedback/prm_evaluation/data/'
-    project_path = 'F://code//github//math-feedback//math-feedback//prm_evaluation//data//'
-    input_file_path = project_path + 'test.jsonl'
-    # output_file_dir = project_path + 'test/'
-    output_file_dir = project_path + 'test//
+def main():
+    parser = argparse.ArgumentParser(description="Evaluate the best of N parameterized models.")
+    parser.add_argument('--data_length', type=int, default=1319, help='Length of the data')
+    parser.add_argument('--num_splits', type=int, default=8, help='Number of splits')
+    parser.add_argument('--dataset_name', type=str, default='gsm8k', help='Name of the dataset')
 ```
 
-表示输入文件是test.jsonl，输出会在输入文件的同级目录下形成一个test文件夹内。
-
-其他超参数设置请关注main函数，其中比较重要的是data_lengtg数据长度。
+表示输出会在输入文件的同级目录下形成一个与数据集名称相同的文件夹内。
 
 #### 2.1.2 response生成
+
+除去基本的python与pytorch，可能需要安装blobfile、transformers、sentencepiece，以及其他所有可能报错缺失的包。
 
 针对每一张显卡，设置显卡号
 
@@ -56,12 +57,15 @@ python best_of_nV3_step1_generate_responses_from_mistral.py
 这里一般需要调整的部分是
 
 ```python
-def prm_evaluation_best_of_n(id = 2, max_workers_num = 10, maxn = 5, data_length = 5,generate_backbone = "tgi", generate_url = TGI_URL, critic_backbone = "tgi", critic_url = CRITIC_URL):
-    idx = gpu_id
-    project_path = '/workspace/dujh22/math_feedback/prm_evaluation/data/'
-    input_file_path = project_path + f'test/test_{id}_part_{idx + 1}.jsonl'
-  
-    output_file_dir = project_path + 'test1/'
+def main():
+    parser = argparse.ArgumentParser(description="Evaluate the best of N parameterized models.")
+
+    parser.add_argument('--max_workers_num', type=int, default=10, help='Maximum number of workers')
+    parser.add_argument('--maxn', type=int, default=32, help='Maximum value of n')
+    parser.add_argument('--data_length', type=int, default=1319, help='Length of the data')
+    parser.add_argument('--generate_backbone', type=str, default="mistral7b", help='Backbone for generation')
+    parser.add_argument('--generate_url', type=str, default=TGI_URL, help='URL for generation backbone')
+    parser.add_argument('--dataset_name', type=str, default='gsm8k', help='Name of the dataset')
 ```
 
 ### 2.2 数据合并与prm计算
@@ -77,11 +81,25 @@ python best_of_nV3_step1_1_merge_data_for_prm.py
 这里一般需要调整的部分是
 
 ```python
-input_folder = '/workspace/dujh22/math_feedback/prm_evaluation/data/test1'  # 替换为文件夹路径
-output_file = '/workspace/dujh22/math_feedback/prm_evaluation/data/test1_1/test.jsonl'
+def main():
+    project_path = '/workspace/dujh22/math_feedback/prm_evaluation/data/'
+    dataset_name = "gsm8k"
+
+    input_folder = project_path + dataset_name + '1/'
+    output_file = project_path + dataset_name + '1_1/' + dataset_name + '.jsonl'
 ```
 
 #### 2.2.2 计算PRM
+
+这里需要安装的包有：
+
+```shell
+pip install deepspeed;
+pip install jsonlines;
+pip install peft;
+pip install bitsandbytes;
+pip install datasets;
+```
 
 然后运行获得各response的奖励值
 
@@ -96,8 +114,8 @@ cd ./prm_training_by_step_last_position
 ```bash
 read -r -d '' get_rewards_commands <<EOF
 /workspace/dujh22/math_feedback/prm_training_by_step_last_position/inference_rm_llama.py
-    --train_data_dir /workspace/dujh22/math_feedback/prm_evaluation/data/test1_1/test.jsonl \
-    --output_path /workspace/dujh22/math_feedback/prm_evaluation/data/test1_1/test_rm.jsonl
+    --train_data_dir /workspace/dujh22/math_feedback/prm_evaluation/data/gsm8k1_1/gsm8k.jsonl \
+    --output_path /workspace/dujh22/math_feedback/prm_evaluation/data/gsm8k1_1/gsm8k_rm.jsonl
 EOF
 ```
 
@@ -112,14 +130,25 @@ python best_of_nV3_step1_2_merge_data_for_prm.py
 这里一般需要调整的部分是
 
 ```python
-input_folder = '/workspace/dujh22/math_feedback/prm_evaluation/data/test1'  # 替换为文件夹路径
-input_file = '/workspace/dujh22/math_feedback/prm_evaluation/data/test1_1/test_rm.jsonl'
-output_file = '/workspace/dujh22/math_feedback/prm_evaluation/data/test1_1/test_rm2.jsonl'
+def main():
+    project_path = '/workspace/dujh22/math_feedback/prm_evaluation/data/'
+    dataset_name = "gsm8k"
+
+    input_folder = project_path + dataset_name + '1/'
+    input_file = project_path + dataset_name + '1_1/' + dataset_name + '_rm.jsonl'
+    output_file = project_path + dataset_name + '1_1/' + dataset_name + '_rm2.jsonl'
 ```
 
 注意input_folder包含了原始数据的必要键值对，input_file包含了prm结果，所以需要将两部分进行合并
 
 #### 2.2.4 结果评价
+
+首先测试Critic Model是否可用，这里给的例子是
+
+```shell
+cd ./llm
+python llm_response.py
+```
 
 然后利用Critic Model 对模型答案的正确性进行校验
 
@@ -131,12 +160,30 @@ python best_of_nV3_step2_calculate_prm_values.py
 
 ```python
 def prm_evaluation_best_of_n(max_workers_num = 10, data_length = 5, critic_backbone = "tgi", critic_url = CRITIC_URL):
-    project_path = '/workspace/dujh22/math_feedback/prm_evaluation/data/test1_1/'
-    input_file_path = project_path + 'test_rm2.jsonl'
-    output_file_path = project_path + 'test_rm3.jsonl'
+    project_path = '/workspace/dujh22/math_feedback/prm_evaluation/data/'
+    dataset_name = "gsm8k"
+
+    input_file_path = project_path + dataset_name + '1_1/' + dataset_name + '_rm2.jsonl'
+    output_file_path = project_path + dataset_name + '1_1/' + dataset_name + '_rm3.jsonl'
+
+def main():
+    parser = argparse.ArgumentParser(description="Evaluate the best of N parameterized models.")
+
+    parser.add_argument('--max_workers_num', type=int, default=100, help='Maximum number of workers')
+    parser.add_argument('--data_length', type=int, default=1319, help='Length of the data')
+    parser.add_argument('--critic_backbone', type=str, default="tgi", help='Backbone for critic')
+    parser.add_argument('--critic_url', type=str, default=TGI_URL, help='URL for critic backbone')
 ```
 
 ### 2.3 Bon绘图
+
+这里需要安装的包有：
+
+```shell
+pip install wandb
+```
+
+然后运行
 
 ```shell
 python best_of_nV3_step3_calculate_accuracy_and_plot.py
@@ -146,10 +193,19 @@ python best_of_nV3_step3_calculate_accuracy_and_plot.py
 
 ```python
 def prm_evaluation_best_of_n(maxn = 5, data_length = 5):
-    project_path = '/workspace/dujh22/math_feedback/prm_evaluation/data/test1_1/'
-    input_file_path = project_path + 'test_rm3.jsonl'
-    output_csv_path = project_path + 'test_rm3.csv'
-    output_pic_path = project_path + 'test_rm3.png'
+    project_path = '/workspace/dujh22/math_feedback/prm_evaluation/data/'
+    dataset_name = "gsm8k"
+
+    input_file_path = project_path + dataset_name + '1_1/' + dataset_name + '_rm3.jsonl'
+    output_csv_path = project_path + dataset_name + '1_1/' + dataset_name + '_rm3.csv'
+    output_pic_path = project_path + dataset_name + '1_1/' + dataset_name + '_rm3.png'
+
+def main():
+    parser = argparse.ArgumentParser(description="Evaluate the best of N parameterized models.")
+
+    parser.add_argument('--maxn', type=int, default=32, help='Maximum value of n')
+    parser.add_argument('--data_length', type=int, default=1319, help='Length of the data')
+  
 ```
 
 ### 2.4 中间修正
@@ -208,7 +264,31 @@ def calculate_prm_values(data, critic_backbone, critic_url, max_workers_num, out
 python best_of_nV3_step4_calculate_another_prm.py
 ```
 
-这个脚本可以在2.3结束之后直接运行，无需返回，运行之后可再次运行2.3即可获得新的prm的绘图。
+这里一般需要调整的部分是
+
+```python
+def prm_evaluation_best_of_n(data_length = 5):
+    project_path = '/workspace/dujh22/math_feedback/prm_evaluation/data/'
+    dataset_name = "gsm8k"
+
+    input_file_path = project_path + dataset_name + '1_1/' + dataset_name + '_rm3.jsonl'
+    output_file_path = project_path + dataset_name + '1_1/' + dataset_name + '_rm3_mathshepherd_prm.jsonl'
+
+def main():
+    prm_evaluation_best_of_n(data_length=1319)
+```
+
+这个脚本可以在2.3结束之后直接运行，无需返回，运行之后可再次运行2.3即可获得新的prm的绘图。注意运行2.3前修改参数
+
+```python
+def prm_evaluation_best_of_n(maxn = 5, data_length = 5):
+    project_path = '/workspace/dujh22/math_feedback/prm_evaluation/data/'
+    dataset_name = "gsm8k"
+
+    input_file_path = project_path + dataset_name + '1_1/' + dataset_name + '_rm3_mathshepherd_prm.jsonl'
+    output_csv_path = project_path + dataset_name + '1_1/' + dataset_name + '_rm3_mathshepherd_prm.csv'
+    output_pic_path = project_path + dataset_name + '1_1/' + dataset_name + '_rm3_mathshepherd_prm.png'
+```
 
 #### 2.5.2 多结果对比
 
@@ -221,3 +301,19 @@ python best_of_nV3_step5_3_plot_csv_files.py
 ```
 
 其中5_1是基础折线图绘制，5_2是基础曲线图绘制，5_3是平滑图绘制
+
+注意修改相关参数
+
+```python
+if __name__ == "__main__":
+    # 指定文件路径
+    project_path = '/workspace/dujh22/math_feedback/prm_evaluation/data/'
+    dataset_name = "gsm8k"
+    dir_path = project_path + dataset_name + '1_1/'
+    # 创建文件和前缀的映射字典
+    file_prefix_mapping = {
+        dir_path + 'gsm8k_rm3.csv': 'Train_llama3-8b-instruct-prm(mean)',
+        dir_path + 'gsm8k_rm3_mathshepherd_prm.csv': 'Open_Mistral-7b-prm(mean)'
+    }
+    output_pic_path = dir_path + 'combined_accuracy_plot.png'
+```

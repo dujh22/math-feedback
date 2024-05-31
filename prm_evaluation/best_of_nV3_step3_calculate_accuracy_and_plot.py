@@ -2,10 +2,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import re
 import json
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import concurrent.futures
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,16 +10,12 @@ import argparse
 import wandb
 from datetime import datetime
 
-from llm.llm_response import llm_response, TGI_URL, CRITIC_URL
-from prm_inference.inference import get_scores, step_tag
-from shepherd_prm.query_api import critic_math_problem, prepare_template
-
-from prm_evaluation.openai.simple_evals.math_eval import QUERY_TEMPLATE, ANSWER_PATTERN, EQUALITY_TEMPLATE
-from prm_inference.inference_mistral7b import get_mistral_response
+from shepherd_prm.query_api import prepare_template
 
 PROMPT_TEMPLATE = prepare_template('/workspace/dujh22/math_feedback/shepherd_prm/templates/criticllm_math_template.txt')
 
 # 初始化 wandb
+
 wandb.login(key="76ea5b2b06f6f9a718116bb3ec0bd54936f2fded")
 wandb.init(
     project="prm_evaluation",
@@ -84,10 +77,12 @@ def calculate_accuracy_and_plot(data, N, output_csv_path, output_pic_path):
     wandb.log({"plot": wandb.Image(output_pic_path)})
 
 def prm_evaluation_best_of_n(maxn = 5, data_length = 5):
-    project_path = '/workspace/dujh22/math_feedback/prm_evaluation/data/test1_1/'
-    input_file_path = project_path + 'test_rm3_mathshepherd_prm.jsonl'
-    output_csv_path = project_path + 'test_rm3_mathshepherd_prm.csv'
-    output_pic_path = project_path + 'test_rm3_mathshepherd_prm.png'
+    project_path = '/workspace/dujh22/math_feedback/prm_evaluation/data/'
+    dataset_name = "gsm8k"
+
+    input_file_path = project_path + dataset_name + '1_1/' + dataset_name + '_rm3.jsonl'
+    output_csv_path = project_path + dataset_name + '1_1/' + dataset_name + '_rm3.csv'
+    output_pic_path = project_path + dataset_name + '1_1/' + dataset_name + '_rm3.png'
 
     N = [i for i in range(1, maxn + 1)]
     
@@ -95,10 +90,10 @@ def prm_evaluation_best_of_n(maxn = 5, data_length = 5):
     calculate_accuracy_and_plot(data, N, output_csv_path, output_pic_path)
 
 def main():
-    parser = argparse.ArgumentParser(description="Evaluate the best of N parameterized models.")
+    parser = argparse.ArgumentParser(description="Evaluate the best of N parameterized models.") 
 
     parser.add_argument('--maxn', type=int, default=32, help='Maximum value of n')
-    parser.add_argument('--data_length', type=int, default=100, help='Length of the data')
+    parser.add_argument('--data_length', type=int, default=1319, help='Length of the data')
     
     args = parser.parse_args()
 

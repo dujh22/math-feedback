@@ -18,19 +18,17 @@ def split_jsonl_file(input_file, output_folder, train_ratio=0.8):
                 if len(temp_data.get('label')) > 0:
                     # 查找<|reserved_special_token_250|>的个数
                     prompt = temp_data.get('prompt')
-                    count = prompt.count('<|reserved_special_token_250|>')  
+                    # 注意special_token不能有<>，可能会被真忽视掉而无法查找
+                    count = prompt.count('reserved_special_token_250')  
                     if count == len(temp_data.get('label')):
                         lines.append(line)
 
     # 打乱数据顺序
     random.shuffle(lines)
 
-    # 计算分割点
-    split_point = int(len(lines) * train_ratio)
-
     # 分割数据
-    train_data = lines[:split_point]
-    test_data = lines[split_point:]
+    train_data = lines[:100000]
+    test_data = lines[100000:110000]
 
     # 输出文件路径
     train_file = os.path.join(output_folder, 'train.jsonl')
@@ -50,6 +48,6 @@ def split_jsonl_file(input_file, output_folder, train_ratio=0.8):
 
 # 示例用法
 input_file = 'F://code//github//math-feedback//math-feedback//prm_training_by_step_last_position_with_eval//raw_data//math-shepherd2.jsonl'  # 替换为你的 JSONL 文件路径
-output_folder = os.path.join(os.path.dirname(input_file), 'math_shepherd2')
+output_folder = os.path.join(os.path.dirname(input_file), 'test')
 
 split_jsonl_file(input_file, output_folder)

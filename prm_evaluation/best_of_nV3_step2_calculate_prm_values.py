@@ -113,9 +113,11 @@ def calculate_prm_values(data, critic_backbone, critic_url, max_workers_num, out
     return data
 
 def prm_evaluation_best_of_n(max_workers_num = 10, data_length = 5, critic_backbone = "tgi", critic_url = CRITIC_URL):
-    project_path = '/workspace/dujh22/math_feedback/prm_evaluation/data/test1_1/'
-    input_file_path = project_path + 'test_rm2.jsonl'
-    output_file_path = project_path + 'test_rm3.jsonl'
+    project_path = '/workspace/dujh22/math_feedback/prm_evaluation/data/'
+    dataset_name = "gsm8k"
+
+    input_file_path = project_path + dataset_name + '1_1/' + dataset_name + '_rm2.jsonl'
+    output_file_path = project_path + dataset_name + '1_1/' + dataset_name + '_rm3.jsonl'
 
     data = load_data(input_file_path, data_length)
     data = calculate_prm_values(data, critic_backbone, critic_url, max_workers_num, output_file_path)
@@ -124,7 +126,7 @@ def main():
     parser = argparse.ArgumentParser(description="Evaluate the best of N parameterized models.")
 
     parser.add_argument('--max_workers_num', type=int, default=100, help='Maximum number of workers')
-    parser.add_argument('--data_length', type=int, default=500, help='Length of the data')
+    parser.add_argument('--data_length', type=int, default=1319, help='Length of the data')
     parser.add_argument('--critic_backbone', type=str, default="tgi", help='Backbone for critic')
     parser.add_argument('--critic_url', type=str, default=TGI_URL, help='URL for critic backbone')
     

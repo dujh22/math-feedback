@@ -15,16 +15,38 @@ from datetime import datetime
 from llm.llm_response import llm_response, TGI_URL, CRITIC_URL
 
 
-def load_and_split_data(input_file_path, data_length, num_splits):
+def data_preprocess(data, dataset_name):
+    if dataset_name == "math500":
+        if data.get('problem') is not None:
+            data['question'] = data.get('problem', None)
+        else:
+            data['question'] = data.get('prompt', None)
+        data['dataset'] = dataset_name
+        return data
+    elif dataset_name == "gsm8k":
+        data['solution'] = data.get('answer', None)
+        ANS_RE = re.compile(r"#### (\-?[0-9\.\,]+)")
+        INVALID_ANS = "[invalid]"
+        match = ANS_RE.search(data['solution'])
+        if match:
+            match_str = match.group(1).strip()
+            match_str = match_str.replace(",", "")
+            data['answer'] = match_str
+        else:
+            data['answer'] = INVALID_ANS
+        return data
+    else:
+        raise ValueError(f"Unsupported dataset: {dataset_name}")
+
+
+def load_and_split_data(input_file_path, data_length, num_splits, dataset_name):
     data = []
     with open(input_file_path, 'r', encoding='utf-8') as f:
-        for line in f:
+        for id, line in enumerate(f):
             temp_data = json.loads(line)
-            if temp_data.get('problem') is not None:
-                temp_data['question'] = temp_data.get('problem', None)
-            else:
-                temp_data['question'] = temp_data.get('prompt', None)
-            data.append(temp_data)
+            temp_data2 = data_preprocess(temp_data, dataset_name)
+            temp_data2['id'] = id
+            data.append(temp_data2)
             if len(data) >= data_length:
                 break
 
@@ -37,23 +59,18 @@ def load_and_split_data(input_file_path, data_length, num_splits):
 
     return split_data
 
-def prm_evaluation_best_of_n(id = 2, max_workers_num = 10, maxn = 5, data_length = 5, num_splits = 8, generate_backbone = "tgi", generate_url = TGI_URL, critic_backbone = "tgi", critic_url = CRITIC_URL):
-    # project_path = '/workspace/dujh22/math_feedback/prm_evaluation/data/'
-    project_path = 'F://code//github//math-feedback//math-feedback//prm_evaluation//data//'
-    input_file_path = project_path + 'test.jsonl'
-    # output_file_dir = project_path + 'test/'
-    output_file_dir = project_path + 'test//'
-
+def prm_evaluation_best_of_n(data_length = 5, num_splits = 8, dataset_name = "math500"):
+    project_path = '/workspace/dujh22/math_feedback/prm_evaluation/data/'
+    input_file_path = project_path + dataset_name + '.jsonl'
+    output_file_dir = project_path + dataset_name + '/'
 
     if not os.path.exists(output_file_dir):
         os.makedirs(output_file_dir)
-
-    output_file_path = project_path + 'test_' + str(id) + '.jsonl'
     
-    split_data = load_and_split_data(input_file_path, data_length, num_splits)
+    split_data = load_and_split_data(input_file_path, data_length, num_splits, dataset_name)
     
     for idx, split in enumerate(split_data):
-        output_file_path = project_path + f'test/test_{id}_part_{idx + 1}.jsonl'
+        output_file_path = output_file_dir + f'{dataset_name}_part_{idx + 1}.jsonl'
         with open(output_file_path, 'w', encoding='utf-8') as out_file:
             for item in split:
                 out_file.write(json.dumps(item, ensure_ascii=False) + '\n')
@@ -63,27 +80,16 @@ def prm_evaluation_best_of_n(id = 2, max_workers_num = 10, maxn = 5, data_length
 def main():
     parser = argparse.ArgumentParser(description="Evaluate the best of N parameterized models.")
 
-    parser.add_argument('--id', type=str, default="500data", help='ID of the model')
-    parser.add_argument('--max_workers_num', type=int, default=10, help='Maximum number of workers')
-    parser.add_argument('--maxn', type=int, default=32, help='Maximum value of n')
-    parser.add_argument('--data_length', type=int, default=500, help='Length of the data')
+    parser.add_argument('--data_length', type=int, default=1319, help='Length of the data')
     parser.add_argument('--num_splits', type=int, default=8, help='Number of splits')
-    parser.add_argument('--generate_backbone', type=str, default="mistral7b", help='Backbone for generation')
-    parser.add_argument('--generate_url', type=str, default=TGI_URL, help='URL for generation backbone')
-    parser.add_argument('--critic_backbone', type=str, default="tgi", help='Backbone for critic')
-    parser.add_argument('--critic_url', type=str, default=TGI_URL, help='URL for critic backbone')
+    parser.add_argument('--dataset_name', type=str, default='gsm8k', help='Name of the dataset')
     
     args = parser.parse_args()
 
     prm_evaluation_best_of_n(
-        id=args.id,
-        max_workers_num=args.max_workers_num,
-        maxn=args.maxn,
         data_length=args.data_length,
-        generate_backbone=args.generate_backbone,
-        generate_url=args.generate_url,
-        critic_backbone=args.critic_backbone,
-        critic_url=args.critic_url
+        num_splits=args.num_splits,
+        dataset_name=args.dataset_name
     )
 
 if __name__ == '__main__':

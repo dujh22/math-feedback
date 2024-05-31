@@ -2,6 +2,7 @@ import os
 import json
 import random
 import shutil
+from tqdm import tqdm
 
 def split_jsonl_file(input_file, output_folder, train_ratio=0.8):
     # 确保输出文件夹存在
@@ -9,7 +10,17 @@ def split_jsonl_file(input_file, output_folder, train_ratio=0.8):
 
     # 读取 JSONL 文件
     with open(input_file, 'r', encoding='utf-8') as f:
-        lines = f.readlines()
+        raw_lines = f.readlines()
+        lines = []
+        for line in tqdm(raw_lines, desc="Reading data"):
+            temp_data = json.loads(line)
+            if temp_data.get('label') is not None:
+                if len(temp_data.get('label')) > 0:
+                    # 查找<|reserved_special_token_250|>的个数
+                    prompt = temp_data.get('prompt')
+                    count = prompt.count('<|reserved_special_token_250|>')  
+                    if count == len(temp_data.get('label')):
+                        lines.append(line)
 
     # 打乱数据顺序
     random.shuffle(lines)
@@ -35,7 +46,7 @@ def split_jsonl_file(input_file, output_folder, train_ratio=0.8):
     print(f"Data has been split and saved to {output_folder}")
 
 # 示例用法
-input_file = 'F://code//github//math-feedback//math-feedback//prm_training_by_step_last_position//raw_data//math-shepherd2.jsonl'  # 替换为你的 JSONL 文件路径
+input_file = 'F://code//github//math-feedback//math-feedback//prm_training_by_step_last_position_with_eval//raw_data//math-shepherd2.jsonl'  # 替换为你的 JSONL 文件路径
 output_folder = os.path.join(os.path.dirname(input_file), 'test')
 
 split_jsonl_file(input_file, output_folder)
